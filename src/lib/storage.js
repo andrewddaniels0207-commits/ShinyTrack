@@ -45,6 +45,13 @@ function toRow(hunt, userId) {
     charm: hunt.charm || false,
     time_seconds: hunt.timeSeconds || 0,
     phases: hunt.phases || [],
+    proof_url: hunt.proofUrl || null,
+    manual: hunt.manual || false,
+    modifiers: hunt.modifiers || {},
+    combo: hunt.combo || 0,
+    dex_ids: hunt.dexIds || [],
+    evolved_ids: hunt.evolvedIds || [],
+    evolved_name: hunt.evolvedName || null,
   }
 }
 
@@ -64,6 +71,13 @@ function fromRow(row) {
     charm: row.charm || false,
     timeSeconds: row.time_seconds || 0,
     phases: row.phases || [],
+    proofUrl: row.proof_url || null,
+    manual: row.manual || false,
+    modifiers: row.modifiers || {},
+    combo: row.combo || 0,
+    dexIds: row.dex_ids || [],
+    evolvedIds: row.evolved_ids || [],
+    evolvedName: row.evolved_name || null,
   }
 }
 
@@ -89,8 +103,55 @@ function supabaseStore(userId) {
   }
 }
 
+const LOCAL_DEX_KEY = 'sht-dexes-v1'
+
+const localDexStore = {
+  async list() {
+    try {
+      return JSON.parse(localStorage.getItem(LOCAL_DEX_KEY)) || []
+    } catch {
+      return []
+    }
+  },
+  async insert(dex) {
+    const dexes = await this.list()
+    dexes.push(dex)
+    localStorage.setItem(LOCAL_DEX_KEY, JSON.stringify(dexes))
+    return dex
+  },
+  async remove(id) {
+    const dexes = (await this.list()).filter((d) => d.id !== id)
+    localStorage.setItem(LOCAL_DEX_KEY, JSON.stringify(dexes))
+  },
+}
+
+function supabaseDexStore(userId) {
+  return {
+    async list() {
+      const { data, error } = await supabase.from('dexes').select('*').order('created_at')
+      if (error) throw error
+      return data.map((d) => ({ id: d.id, name: d.name, gameId: d.game_id }))
+    },
+    async insert(dex) {
+      const { error } = await supabase
+        .from('dexes')
+        .insert({ id: dex.id, user_id: userId, name: dex.name, game_id: dex.gameId || null })
+      if (error) throw error
+      return dex
+    },
+    async remove(id) {
+      const { error } = await supabase.from('dexes').delete().eq('id', id)
+      if (error) throw error
+    },
+  }
+}
+
 export function getStore(user) {
   return user && supabase ? supabaseStore(user.id) : localStore
+}
+
+export function getDexStore(user) {
+  return user && supabase ? supabaseDexStore(user.id) : localDexStore
 }
 
 export function newHuntId() {

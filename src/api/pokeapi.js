@@ -35,6 +35,44 @@ export function titleCase(name) {
     .join(' ')
 }
 
+// Full national dex: [{ id, name, displayName }] sorted by id. Cached.
+export async function getNationalDex() {
+  const cache = readCache()
+  if (cache.national) return cache.national
+  const res = await fetch(`${API}/pokemon-species?limit=2000`).then((r) => r.json())
+  const list = res.results
+    .map((s) => {
+      const id = idFromUrl(s.url)
+      return { id, name: s.name, displayName: titleCase(s.name) }
+    })
+    .filter((p) => p.id)
+    .sort((a, b) => a.id - b.id)
+  cache.national = list
+  writeCache(cache)
+  return list
+}
+
+// Direct next evolutions of a species: [{ id, name, displayName }].
+export async function getNextEvolutions(speciesId) {
+  const sp = await fetch(`${API}/pokemon-species/${speciesId}`).then((r) => r.json())
+  if (!sp.evolution_chain) return []
+  const chain = await fetch(sp.evolution_chain.url).then((r) => r.json())
+  function find(node) {
+    if (idFromUrl(node.species.url) === speciesId) return node
+    for (const c of node.evolves_to) {
+      const f = find(c)
+      if (f) return f
+    }
+    return null
+  }
+  const node = find(chain.chain)
+  if (!node) return []
+  return node.evolves_to.map((e) => {
+    const id = idFromUrl(e.species.url)
+    return { id, name: e.species.name, displayName: titleCase(e.species.name) }
+  })
+}
+
 // Returns [{ id, name, displayName }] sorted by national dex number.
 export async function getPokemonForGame(game) {
   const cache = readCache()

@@ -1,10 +1,11 @@
-// Approximate best-case shiny odds per game + method.
-// Model: probability = rolls / base, where base is 8192 (Gen 2-5) or 4096 (Gen 6+).
-// Some methods use a fixed community-accepted denominator instead.
-// These are approximations — exact odds often depend on chain length,
-// research level, etc. Displayed values assume best conditions.
+// Dynamic shiny odds engine.
+// Odds are computed from the game, method, and per-hunt modifiers
+// (Shiny Charm, sandwich level, chain length, dex research, KO counts...).
+// Model: probability = rolls / base (8192 for Gen 2-5, 4096 for Gen 6+).
+// Values are approximations of community-documented odds.
 
 import { getGame } from './games'
+import { getMethods } from './methods'
 
 // Games where the Shiny Charm exists (introduced in Black 2 / White 2).
 const CHARM_GAMES = new Set([
@@ -17,78 +18,136 @@ export function charmAvailable(gameId) {
   return CHARM_GAMES.has(gameId)
 }
 
-function baseFor(gameId) {
+const CHARM = { key: 'charm', label: 'Shiny Charm', type: 'toggle' }
+const sel = (key, label, options) => ({ key, label, type: 'select', options })
+
+// Modifiers available for a given game + method. Selected at hunt start
+// and adjustable at any time during the hunt.
+export function getModifierDefs(gameId, method) {
   const game = getGame(gameId)
-  return game && game.gen >= 6 ? 4096 : 8192
-}
+  if (!game) return []
+  const defs = []
+  const addCharm = () => charmAvailable(gameId) && defs.push(CHARM)
 
-// Per-method model. rolls = extra shiny rolls at best conditions.
-// charmRolls = extra rolls the charm adds for this method (default 2).
-// fixed = use this denominator directly. charmFixed = denominator with charm.
-// varies = odds depend heavily on conditions; show a hint instead.
-const METHOD_ODDS = {
-  'Full Odds (Random Encounter)': { rolls: 1 },
-  'Soft Reset': { rolls: 1 },
-  Breeding: { rolls: 1 },
-  'Shiny Ditto Breeding': { fixed: 64 },
-  'Odd Egg': { fixed: 7 },
-  'Masuda Method (Breeding)': { masuda: true },
-  'PokeRadar Chaining': { fixed: 200, charmFixed: 200, note: 'at chain 40' },
-  'Chain Fishing': { fixed: 100, charmFixed: 96, note: 'at streak 20+' },
-  'Friend Safari': { rolls: 5 },
-  'Horde Encounters': { rolls: 1, note: '5 Pokemon per battle ≈ 5x this per horde' },
-  'DexNav Chaining': { varies: 'improves with search level (roughly 1/512 or better at high levels)' },
-  'SOS Chaining': { rolls: 5, note: 'at chain 31+' },
-  'Ultra Wormholes': { varies: 'up to ~1/3 for legendaries at max distance' },
-  'Catch Combo': { rolls: 13, charmRolls: 2, note: 'combo 31+ with lure' },
-  'Dynamax Adventures': { fixed: 300, charmFixed: 100 },
-  'Max Raid Battles': { rolls: 1 },
-  'KO Method (Brilliant Aura)': { rolls: 6, note: 'at 500+ KOs' },
-  'Grand Underground': { rolls: 1 },
-  'Hidden Grotto': { rolls: 1 },
-  'Mirage Spots': { rolls: 1 },
-  'Mass Outbreak': null, // resolved per game below
-  'Massive Mass Outbreak': { rolls: 13, charmRolls: 3, note: 'with max dex research' },
-  'Space-Time Distortion': { rolls: 1, charmRolls: 3 },
-  'Sandwich (Sparkling Power)': { rolls: 4, note: 'level 3 sandwich' },
-  'Tera Raid Battles': { rolls: 1, charmRolls: 0, note: 'charm does not affect raids' },
-  'Wild Encounter Chaining': { varies: 'depends on chain length' },
-}
-
-function resolveSpec(gameId, method) {
-  if (method === 'Mass Outbreak') {
-    // PLA outbreaks are far stronger than SV outbreaks.
-    return gameId === 'legends-arceus'
-      ? { rolls: 26, charmRolls: 3, note: 'with max dex research' }
-      : { rolls: 3, note: 'after 60 KOs' }
+  switch (method) {
+    case 'PokeRadar Chaining':
+      defs.push(sel('radarChain', 'Radar chain', [
+        { value: 0, label: '0-9' }, { value: 1, label: '10-19' },
+        { value: 2, label: '20-29' }, { value: 3, label: '30-39' },
+        { value: 4, label: '40+' },
+      ]))
+      return defs
+    case 'Chain Fishing':
+      defs.push(sel('fishChain', 'Fishing streak', [
+        { value: 0, label: '0-9' }, { value: 20, label: '10-19' }, { value: 40, label: '20+' },
+      ]))
+      addCharm()
+      return defs
+    case 'SOS Chaining':
+      defs.push(sel('sosChain', 'SOS chain', [
+        { value: 0, label: '0-10' }, { value: 4, label: '11-20' },
+        { value: 8, label: '21-30' }, { value: 12, label: '31+' },
+      ]))
+      addCharm()
+      return defs
+    case 'KO Method (Brilliant Aura)':
+      defs.push(sel('kos', 'Species KOs/catches', [
+        { value: 0, label: '<50' }, { value: 1, label: '50+' }, { value: 2, label: '100+' },
+        { value: 3, label: '200+' }, { value: 4, label: '300+' }, { value: 5, label: '500+' },
+      ]))
+      addCharm()
+      return defs
+    case 'Odd Egg':
+    case 'Shiny Ditto Breeding':
+    case 'Tera Raid Battles':
+      return defs
+    case 'Masuda Method (Breeding)':
+      if (charmAvailable(gameId) && game.gen >= 5) defs.push(CHARM)
+      return defs
+    default:
+      break
   }
-  return METHOD_ODDS[method]
+
+  if (gameId === 'legends-arceus') {
+    defs.push(sel('research', 'Dex research', [
+      { value: 0, label: 'Below level 10' }, { value: 1, label: 'Level 10' }, { value: 3, label: 'Perfect' },
+    ]))
+    addCharm()
+    return defs
+  }
+  if (gameId === 'scarlet-violet') {
+    defs.push(sel('sandwich', 'Sparkling Power', [
+      { value: 0, label: 'No sandwich' }, { value: 1, label: 'Level 1' },
+      { value: 2, label: 'Level 2' }, { value: 3, label: 'Level 3' },
+    ]))
+    if (method === 'Mass Outbreak') {
+      defs.push(sel('outbreakKos', 'Outbreak KOs', [
+        { value: 0, label: '<30' }, { value: 1, label: '30+' }, { value: 2, label: '60+' },
+      ]))
+    }
+    addCharm()
+    return defs
+  }
+  if (gameId === 'lets-go') {
+    defs.push({ key: 'lure', label: 'Lure active', type: 'toggle' })
+    addCharm()
+    return defs
+  }
+
+  addCharm()
+  return defs
 }
 
+// combo: live catch combo count (Let's Go games).
 // Returns { denominator, note } | { varies } | null (unknown/custom method).
-export function getOdds(gameId, method, charm) {
-  const spec = resolveSpec(gameId, method)
-  if (!spec) return null
-  if (spec.varies) return { varies: spec.varies }
+export function getOdds(gameId, method, modifiers = {}, combo = 0) {
+  const game = getGame(gameId)
+  if (!game) return null
+  const known = getMethods(gameId).includes(method) && method !== 'Other'
+  if (!known) return null
 
-  const base = baseFor(gameId)
-  const useCharm = charm && charmAvailable(gameId)
+  const base = game.gen >= 6 ? 4096 : 8192
+  const charm = modifiers.charm && charmAvailable(gameId)
 
-  if (spec.fixed) {
-    return { denominator: useCharm && spec.charmFixed ? spec.charmFixed : spec.fixed, note: spec.note }
+  switch (method) {
+    case 'Odd Egg':
+      return { denominator: 7 }
+    case 'Shiny Ditto Breeding':
+      return { denominator: 64 }
+    case 'Dynamax Adventures':
+      return { denominator: charm ? 100 : 300 }
+    case 'PokeRadar Chaining': {
+      const table = game.gen === 4 ? [8192, 4000, 2200, 1100, 200] : [4096, 2000, 1000, 500, 99]
+      return { denominator: table[modifiers.radarChain ?? 0] }
+    }
+    case 'Ultra Wormholes':
+      return { varies: 'up to ~1/3 for legendaries at max wormhole distance' }
+    case 'DexNav Chaining':
+      return { varies: 'improves with search level (roughly 1/512 or better at high levels)' }
+    case 'Wild Encounter Chaining':
+      return { varies: 'depends on chain length' }
+    default:
+      break
   }
 
-  let rolls
-  if (spec.masuda) {
-    const game = getGame(gameId)
-    rolls = game.gen === 4 ? 5 : 6
-    if (useCharm && game.gen >= 5) rolls += 2
-  } else {
-    rolls = spec.rolls
-    if (useCharm) rolls += spec.charmRolls ?? 2
-  }
+  let rolls = 1
+  if (method === 'Masuda Method (Breeding)') rolls = game.gen === 4 ? 5 : 6
+  if (method === 'Mass Outbreak' && gameId === 'legends-arceus') rolls += 25
+  if (method === 'Massive Mass Outbreak') rolls += 12
 
-  return { denominator: Math.round(base / rolls), note: spec.note }
+  rolls += modifiers.sosChain || 0
+  rolls += modifiers.fishChain || 0
+  rolls += modifiers.kos || 0
+  rolls += modifiers.research || 0
+  rolls += modifiers.sandwich || 0
+  rolls += modifiers.outbreakKos || 0
+  if (modifiers.lure) rolls += 1
+  if (gameId === 'lets-go') {
+    rolls += combo >= 31 ? 11 : combo >= 21 ? 7 : combo >= 11 ? 3 : 0
+  }
+  if (charm) rolls += gameId === 'legends-arceus' ? 3 : 2
+
+  return { denominator: Math.round(base / rolls) }
 }
 
 // Cumulative chance (%) of at least one shiny in `count` encounters.

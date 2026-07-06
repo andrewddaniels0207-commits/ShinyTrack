@@ -1,9 +1,61 @@
 import { useEffect, useMemo, useState } from 'react'
-import { GAMES } from '../data/games'
+import { GAMES, getGame } from '../data/games'
 import { getMethods } from '../data/methods'
 import { getPokemonForGame, spriteUrl } from '../api/pokeapi'
+import { getOdds } from '../data/odds'
+import ModifierControls from './ModifierControls'
+import { dexStatus } from './DexTracker'
 
-export default function NewHunt({ onStart, onCancel }) {
+// Suggests up to 3 uncaught Pokemon from the user's owned games.
+function Suggestions({ profile, hunts, onPick }) {
+  const [suggestions, setSuggestions] = useState(null)
+  const owned = profile?.gamesOwned || []
+
+  useEffect(() => {
+    if (owned.length === 0) return
+    let cancelled = false
+    async function load() {
+      const { caught, inProgress } = dexStatus(hunts)
+      const picks = []
+      const gamePool = [...owned].sort(() => Math.random() - 0.5)
+      for (const gameId of gamePool) {
+        if (picks.length >= 3) break
+        const game = getGame(gameId)
+        if (!game) continue
+        try {
+          const list = await getPokemonForGame(game)
+          const candidates = list.filter((p) => !caught.has(p.id) && !inProgress.has(p.id))
+          if (candidates.length) {
+            picks.push({ pokemon: candidates[Math.floor(Math.random() * candidates.length)], game })
+          }
+        } catch { /* skip on network error */ }
+      }
+      if (!cancelled) setSuggestions(picks)
+    }
+    load()
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  if (owned.length === 0 || suggestions?.length === 0) return null
+  return (
+    <div className="suggestions">
+      <label className="field-label">Suggested hunts (missing from your living dex)</label>
+      {!suggestions && <p className="muted small">Finding suggestions…</p>}
+      <div className="row">
+        {suggestions?.map((s, i) => (
+          <button key={i} className="suggestion-card" onClick={() => onPick(s.game, s.pokemon)}>
+            <img src={spriteUrl(s.pokemon.id)} alt="" width="48" height="48" />
+            <strong>{s.pokemon.displayName}</strong>
+            <span className="muted small">{s.game.name}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+export default function NewHunt({ onStart, onCancel, dexes = [], profile, hunts = [], manual = false }) {
   const [game, setGame] = useState(null)
   const [pokemonList, setPokemonList] = useState([])
   const [loading, setLoading] = useState(false)
@@ -12,6 +64,12 @@ export default function NewHunt({ onStart, onCancel }) {
   const [pokemon, setPokemon] = useState(null)
   const [method, setMethod] = useState('')
   const [customMethod, setCustomMethod] = useState('')
+  const [modifiers, setModifiers] = useState({})
+  const [dexIds, setDexIds] = useState([])
+  // Manual-entry fields
+  const [count, setCount] = useState('')
+  const [date, setDate] = useState(new Date().toISOString().slice(0, 10))
+  const [proofUrl, setProofUrl] = useState('')
 
   useEffect(() => {
     if (!game) return
@@ -19,7 +77,6 @@ export default function NewHunt({ onStart, onCancel }) {
     setLoading(true)
     setLoadError(null)
     setPokemonList([])
-    setPokemon(null)
     setSearch('')
     getPokemonForGame(game)
       .then((list) => {
@@ -31,39 +88,65 @@ export default function NewHunt({ onStart, onCancel }) {
       .finally(() => {
         if (!cancelled) setLoading(false)
       })
-    return () => {
-      cancelled = true
-    }
+    return () => { cancelled = true }
   }, [game])
+
+  function pickGame(g, keepPokemon = null) {
+    setGame(g)
+    setPokemon(keepPokemon)
+    setMethod('')
+    setModifiers({})
+  }
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
     if (!q) return pokemonList
-    return pokemonList.filter(
-      (p) => p.name.includes(q) || String(p.id) === q
-    )
+    return pokemonList.filter((p) => p.name.includes(q) || String(p.id) === q)
   }, [search, pokemonList])
 
   const methods = game ? getMethods(game.id) : []
   const finalMethod = method === 'Other' ? customMethod.trim() : method
   const canStart = game && pokemon && finalMethod
+  const previewOdds = game && finalMethod ? getOdds(game.id, finalMethod, modifiers) : null
+
+  function toggleDex(id) {
+    setDexIds((prev) => (prev.includes(id) ? prev.filter((d) => d !== id) : [...prev, id]))
+  }
 
   function start() {
-    onStart({
+    const fields = {
       gameId: game.id,
       gameName: game.name,
       pokemonId: pokemon.id,
       pokemonName: pokemon.displayName,
       method: finalMethod,
-    })
+      modifiers,
+      dexIds,
+    }
+    if (manual) {
+      fields.manualCount = parseInt(count, 10) || 0
+      fields.manualDate = date
+      fields.proofUrl = proofUrl.trim() || null
+    }
+    onStart(fields)
   }
 
   return (
     <div className="panel">
       <div className="panel-header">
-        <h2>New Hunt</h2>
+        <h2>{manual ? 'Add Past Hunt' : 'New Hunt'}</h2>
         <button className="btn ghost" onClick={onCancel}>Cancel</button>
       </div>
+
+      {manual && (
+        <p className="muted small">
+          Past hunts count toward your dexes and collection but not the site leaderboards.
+        </p>
+      )}
+
+      {!manual && !game && (
+        <Suggestions profile={profile} hunts={hunts} onPick={(g, p) => pickGame(g, p)} />
+      )}
 
       <label className="field-label">1. Game</label>
       <div className="game-grid">
@@ -71,7 +154,7 @@ export default function NewHunt({ onStart, onCancel }) {
           <button
             key={g.id}
             className={`game-chip ${game?.id === g.id ? 'selected' : ''}`}
-            onClick={() => setGame(g)}
+            onClick={() => pickGame(g)}
           >
             {g.name}
           </button>
@@ -120,7 +203,7 @@ export default function NewHunt({ onStart, onCancel }) {
           )}
 
           <label className="field-label">3. Method</label>
-          <select className="input" value={method} onChange={(e) => setMethod(e.target.value)}>
+          <select className="input" value={method} onChange={(e) => { setMethod(e.target.value); setModifiers({}) }}>
             <option value="">Select a method…</option>
             {methods.map((m) => (
               <option key={m} value={m}>{m}</option>
@@ -135,11 +218,49 @@ export default function NewHunt({ onStart, onCancel }) {
               onChange={(e) => setCustomMethod(e.target.value)}
             />
           )}
+
+          {finalMethod && !manual && (
+            <>
+              <label className="field-label">
+                4. Odds setup {previewOdds?.denominator ? `— ~1/${previewOdds.denominator.toLocaleString()}` : ''}
+              </label>
+              <ModifierControls gameId={game.id} method={finalMethod} values={modifiers} onChange={setModifiers} />
+              <p className="muted small">You can change these mid-hunt too.</p>
+            </>
+          )}
+
+          {dexes.length > 0 && (
+            <>
+              <label className="field-label">Also add to dex trackers (national is automatic)</label>
+              <div className="game-grid">
+                {dexes.map((d) => (
+                  <button
+                    key={d.id}
+                    className={`game-chip ${dexIds.includes(d.id) ? 'selected' : ''}`}
+                    onClick={() => toggleDex(d.id)}
+                  >
+                    {d.name}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+
+          {manual && (
+            <>
+              <label className="field-label">Encounters (if you remember)</label>
+              <input className="input narrow" type="number" min="0" value={count} onChange={(e) => setCount(e.target.value)} placeholder="0" />
+              <label className="field-label">Date found</label>
+              <input className="input narrow" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+              <label className="field-label">Reaction clip link (optional)</label>
+              <input className="input" type="url" value={proofUrl} onChange={(e) => setProofUrl(e.target.value)} placeholder="https://youtube.com/... or https://twitch.tv/..." />
+            </>
+          )}
         </>
       )}
 
       <button className="btn primary big" disabled={!canStart} onClick={start}>
-        ✨ Start Hunt
+        {manual ? '✨ Add to Collection' : '✨ Start Hunt'}
       </button>
     </div>
   )

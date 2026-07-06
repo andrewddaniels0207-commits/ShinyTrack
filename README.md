@@ -1,6 +1,8 @@
-# ✨ Shiny Hunt Tracker
+# ✨ ShinyTrack
 
 Track Pokemon shiny hunts across every main-series game, with account logins so hunts sync across devices.
+
+**v3** adds: home page with news/leaderboard/recent shinies, living dex trackers (national + custom per game), evolutions, dynamic odds modifiers, LGPE catch combos, manual past-hunt entry, favorite shinies, social links, resources page, and tutorial placeholders. Existing databases must run `supabase-migration-3.sql` (after migration 2). Site links (Discord/Twitch/YouTube) live in `src/data/site.js`; news posts in `src/data/news.js`; resource links in `src/data/resources.js`.
 
 ## Features
 

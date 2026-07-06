@@ -1,9 +1,12 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
+import { GAMES } from '../data/games'
 
-export default function ProfileSettings({ user, onClose }) {
+export default function ProfileSettings({ user, onClose, onSaved }) {
   const [username, setUsername] = useState('')
   const [isPublic, setIsPublic] = useState(false)
+  const [socials, setSocials] = useState({ youtube: '', twitch: '', twitter: '' })
+  const [gamesOwned, setGamesOwned] = useState([])
   const [saved, setSaved] = useState(false)
   const [message, setMessage] = useState(null)
   const [busy, setBusy] = useState(false)
@@ -18,10 +21,16 @@ export default function ProfileSettings({ user, onClose }) {
         if (data) {
           setUsername(data.username || '')
           setIsPublic(data.is_public)
+          setSocials({ youtube: '', twitch: '', twitter: '', ...(data.socials || {}) })
+          setGamesOwned(data.games_owned || [])
           setSaved(true)
         }
       })
   }, [user.id])
+
+  function toggleGame(id) {
+    setGamesOwned((prev) => (prev.includes(id) ? prev.filter((g) => g !== id) : [...prev, id]))
+  }
 
   async function save() {
     const name = username.trim().toLowerCase()
@@ -31,9 +40,16 @@ export default function ProfileSettings({ user, onClose }) {
     }
     setBusy(true)
     setMessage(null)
-    const { error } = await supabase
-      .from('profiles')
-      .upsert({ id: user.id, username: name, is_public: isPublic })
+    const cleanSocials = Object.fromEntries(
+      Object.entries(socials).map(([k, v]) => [k, v.trim()]).filter(([, v]) => v)
+    )
+    const { error } = await supabase.from('profiles').upsert({
+      id: user.id,
+      username: name,
+      is_public: isPublic,
+      socials: cleanSocials,
+      games_owned: gamesOwned,
+    })
     setBusy(false)
     if (error) {
       setMessage({
@@ -44,6 +60,7 @@ export default function ProfileSettings({ user, onClose }) {
       setUsername(name)
       setSaved(true)
       setMessage({ ok: true, text: 'Profile saved.' })
+      onSaved?.()
     }
   }
 
@@ -52,13 +69,9 @@ export default function ProfileSettings({ user, onClose }) {
   return (
     <div className="panel">
       <div className="panel-header">
-        <h2>Public Profile</h2>
+        <h2>Profile</h2>
         <button className="btn ghost" onClick={onClose}>Close</button>
       </div>
-
-      <p className="muted">
-        Pick a username and make your profile public to share your shiny collection with anyone.
-      </p>
 
       <label className="field-label">Username</label>
       <input
@@ -71,8 +84,29 @@ export default function ProfileSettings({ user, onClose }) {
 
       <label className="charm-toggle">
         <input type="checkbox" checked={isPublic} onChange={(e) => setIsPublic(e.target.checked)} />
-        Make my collection public
+        Make my profile public (required to appear on leaderboards and share your collection)
       </label>
+
+      <label className="field-label">Social links (shown on your public profile)</label>
+      <input className="input" type="url" placeholder="YouTube channel URL"
+        value={socials.youtube} onChange={(e) => setSocials({ ...socials, youtube: e.target.value })} />
+      <input className="input" type="url" placeholder="Twitch channel URL"
+        value={socials.twitch} onChange={(e) => setSocials({ ...socials, twitch: e.target.value })} />
+      <input className="input" type="url" placeholder="X / Twitter URL"
+        value={socials.twitter} onChange={(e) => setSocials({ ...socials, twitter: e.target.value })} />
+
+      <label className="field-label">Games I own (used for hunt suggestions)</label>
+      <div className="game-grid">
+        {GAMES.map((g) => (
+          <button
+            key={g.id}
+            className={`game-chip ${gamesOwned.includes(g.id) ? 'selected' : ''}`}
+            onClick={() => toggleGame(g.id)}
+          >
+            {g.name}
+          </button>
+        ))}
+      </div>
 
       {message && <p className={message.ok ? 'success' : 'error'}>{message.text}</p>}
 
@@ -92,6 +126,7 @@ export default function ProfileSettings({ user, onClose }) {
               Copy
             </button>
           </div>
+          <p className="muted small">Tip: set your favorite shiny with the ☆ star on any Collection card.</p>
         </>
       )}
     </div>

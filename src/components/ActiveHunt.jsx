@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { spriteUrl } from '../api/pokeapi'
-import { getOdds, cumulativeChance, charmAvailable } from '../data/odds'
+import { getOdds, cumulativeChance } from '../data/odds'
+import ModifierControls from './ModifierControls'
 
 function formatTime(totalSeconds) {
   const h = Math.floor(totalSeconds / 3600)
@@ -97,9 +98,9 @@ export default function ActiveHunt({ hunt, onUpdate, onComplete, onDelete, onBac
   }
 
   // ---- Odds ----
-  const odds = getOdds(hunt.gameId, hunt.method, hunt.charm)
-  const hasCharm = charmAvailable(hunt.gameId)
+  const odds = getOdds(hunt.gameId, hunt.method, hunt.modifiers, hunt.combo)
   const chance = odds?.denominator ? cumulativeChance(odds.denominator, hunt.count) : null
+  const isLetsGo = hunt.gameId === 'lets-go'
 
   const phases = hunt.phases || []
 
@@ -136,18 +137,36 @@ export default function ActiveHunt({ hunt, onUpdate, onComplete, onDelete, onBac
           )}
           {odds?.varies && <span className="muted small">Odds vary: {odds.varies}</span>}
           {!odds && <span className="muted small">Custom method — odds unknown</span>}
-          {hasCharm && (
-            <label className="charm-toggle">
-              <input
-                type="checkbox"
-                checked={hunt.charm || false}
-                onChange={(e) => onUpdate({ ...hunt, charm: e.target.checked })}
-              />
-              Shiny Charm
-            </label>
-          )}
+          <ModifierControls
+            gameId={hunt.gameId}
+            method={hunt.method}
+            values={hunt.modifiers}
+            onChange={(m) => onUpdate({ ...hunt, modifiers: m })}
+          />
         </div>
       </div>
+
+      {isLetsGo && (
+        <div className="combo-box">
+          <span className="muted small">Catch Combo</span>
+          <span className="combo-value">{hunt.combo || 0}</span>
+          <div className="row center-row">
+            <button
+              className="btn primary"
+              onClick={() => onUpdate({ ...hunt, combo: (hunt.combo || 0) + 1, count: hunt.count + 1 })}
+            >
+              +1 Catch (combo + encounter)
+            </button>
+            <button
+              className="btn"
+              disabled={!hunt.combo}
+              onClick={() => onUpdate({ ...hunt, combo: 0 })}
+            >
+              Combo broke
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="counter">{hunt.count.toLocaleString()}</div>
 
