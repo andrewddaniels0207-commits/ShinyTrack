@@ -42,6 +42,9 @@ function toRow(hunt, userId) {
     status: hunt.status,
     start_date: hunt.startDate,
     end_date: hunt.endDate,
+    charm: hunt.charm || false,
+    time_seconds: hunt.timeSeconds || 0,
+    phases: hunt.phases || [],
   }
 }
 
@@ -58,6 +61,9 @@ function fromRow(row) {
     status: row.status,
     startDate: row.start_date,
     endDate: row.end_date,
+    charm: row.charm || false,
+    timeSeconds: row.time_seconds || 0,
+    phases: row.phases || [],
   }
 }
 

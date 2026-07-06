@@ -7,7 +7,14 @@ const SORTS = {
   method: { label: 'Method', fn: (a, b) => a.method.localeCompare(b.method) },
 }
 
-export default function Collection({ hunts, onDelete }) {
+function formatTime(totalSeconds) {
+  if (!totalSeconds) return null
+  const h = Math.floor(totalSeconds / 3600)
+  const m = Math.floor((totalSeconds % 3600) / 60)
+  return h > 0 ? `${h}h ${m}m` : `${m}m`
+}
+
+export default function Collection({ hunts, onDelete, readOnly = false }) {
   const [sortBy, setSortBy] = useState('date')
   const [asc, setAsc] = useState(false)
 
@@ -53,15 +60,19 @@ export default function Collection({ hunts, onDelete }) {
             <span className="muted">{h.gameName}</span>
             <span className="muted">{h.method}</span>
             <span className="muted">{h.count.toLocaleString()} encounters</span>
+            {formatTime(h.timeSeconds) && <span className="muted">{formatTime(h.timeSeconds)} hunted</span>}
+            {h.phases?.length > 0 && <span className="muted">{h.phases.length} phase{h.phases.length > 1 ? 's' : ''}</span>}
             <span className="muted small">
               {h.endDate ? new Date(h.endDate).toLocaleDateString() : ''}
             </span>
-            <button
-              className="btn ghost small"
-              onClick={() => window.confirm(`Remove shiny ${h.pokemonName} from collection?`) && onDelete(h)}
-            >
-              Remove
-            </button>
+            {!readOnly && (
+              <button
+                className="btn ghost small"
+                onClick={() => window.confirm(`Remove shiny ${h.pokemonName} from collection?`) && onDelete(h)}
+              >
+                Remove
+              </button>
+            )}
           </div>
         ))}
       </div>

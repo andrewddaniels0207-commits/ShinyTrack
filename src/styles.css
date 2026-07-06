@@ -159,3 +159,31 @@ body {
   padding: 10px 14px; border-radius: 8px;
   background: var(--panel); margin: 0 0 12px;
 }
+
+.odds-box {
+  margin: 10px auto 0; padding: 10px 16px;
+  background: #141830; border-radius: 8px; display: inline-block;
+}
+.odds-main { font-size: 1.2rem; font-weight: 700; color: var(--accent); }
+.charm-toggle {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  margin-top: 8px; cursor: pointer; font-size: 0.9rem;
+}
+.charm-toggle input { accent-color: var(--accent); width: 16px; height: 16px; }
+
+.timer-row {
+  display: flex; align-items: center; justify-content: center; gap: 12px;
+  margin: 14px 0 6px;
+}
+.timer {
+  font-size: 1.5rem; font-weight: 700; font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+.center-row { justify-content: center; margin-top: 8px; }
+
+.phases { text-align: left; margin-top: 14px; }
+.phase-row {
+  display: flex; justify-content: space-between; gap: 8px;
+  padding: 7px 12px; background: var(--panel-2);
+  border-radius: 8px; margin-bottom: 6px; font-size: 0.9rem;
+}

@@ -10,6 +10,12 @@ Track Pokemon shiny hunts across every main-series game, with account logins so 
 - Multiple simultaneous hunts via the Hunts menu
 - "Found the Shiny!" ends a hunt and adds it to your Collection, sortable by date, game, or method (both directions)
 - Account login (Supabase) or guest mode (browser-only storage)
+- Approximate shiny odds per game + method, with a per-hunt Shiny Charm toggle and a "% chance you'd have found it by now" readout
+- Hunt timer (start/pause) — total time hunted is saved with each shiny
+- Phase tracking: log off-target shinies mid-hunt, optionally resetting the counter
+- Public profile pages: pick a username, toggle your collection public, and share `yoursite/#/u/username`
+
+Existing databases need `supabase-migration-2.sql` run in the Supabase SQL Editor for the odds/timer/phase/profile features.
 
 ## Run it locally
 

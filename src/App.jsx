@@ -6,8 +6,23 @@ import HuntsMenu from './components/HuntsMenu'
 import NewHunt from './components/NewHunt'
 import ActiveHunt from './components/ActiveHunt'
 import Collection from './components/Collection'
+import ProfileSettings from './components/ProfileSettings'
+import PublicProfile from './components/PublicProfile'
+
+function parseRoute() {
+  const m = window.location.hash.match(/^#\/u\/([a-zA-Z0-9_-]+)/)
+  return m ? { publicUser: m[1] } : {}
+}
 
 export default function App() {
+  const [route, setRoute] = useState(parseRoute())
+
+  useEffect(() => {
+    const onHash = () => setRoute(parseRoute())
+    window.addEventListener('hashchange', onHash)
+    return () => window.removeEventListener('hashchange', onHash)
+  }, [])
+
   const [session, setSession] = useState(null)
   const [guest, setGuest] = useState(false)
   const [authReady, setAuthReady] = useState(!supabase)
@@ -83,6 +98,9 @@ export default function App() {
       status: 'active',
       startDate: new Date().toISOString(),
       endDate: null,
+      charm: false,
+      timeSeconds: 0,
+      phases: [],
     }
     save(hunt)
     setOpenHuntId(hunt.id)
@@ -100,6 +118,11 @@ export default function App() {
     setGuest(false)
     setHunts([])
     setView('hunts')
+  }
+
+  // Public profile pages work for everyone, logged in or not.
+  if (route.publicUser) {
+    return <PublicProfile username={route.publicUser} />
   }
 
   if (!authReady) return <div className="app center-screen muted">Loading…</div>
@@ -131,6 +154,14 @@ export default function App() {
           >
             Collection
           </button>
+          {user && (
+            <button
+              className={`btn ghost ${view === 'profile' ? 'active' : ''}`}
+              onClick={() => setView('profile')}
+            >
+              Profile
+            </button>
+          )}
           <button className="btn ghost muted" onClick={logout} title={user?.email || 'Guest'}>
             {guest ? 'Guest · Exit' : 'Log out'}
           </button>
@@ -158,10 +189,13 @@ export default function App() {
           onUpdate={save}
           onComplete={completeHunt}
           onDelete={remove}
-          onBack={() => { setView('hunts'); setOpenHuntId(null) }}
+          onBack={(updated) => { if (updated !== openHunt) save(updated); setView('hunts'); setOpenHuntId(null) }}
         />
       )}
       {view === 'collection' && <Collection hunts={hunts} onDelete={remove} />}
+      {view === 'profile' && user && (
+        <ProfileSettings user={user} onClose={() => setView('hunts')} />
+      )}
     </div>
   )
 }
