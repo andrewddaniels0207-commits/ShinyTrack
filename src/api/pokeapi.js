@@ -5,7 +5,7 @@
 import { GAME_EXTRAS, VARIANT_SUFFIXES } from '../data/availability'
 
 const API = 'https://pokeapi.co/api/v2'
-const CACHE_KEY = 'sht-dex-cache-v3'
+const CACHE_KEY = 'sht-dex-cache-v4'
 
 function readCache() {
   try {
@@ -71,9 +71,13 @@ export async function getVariantList() {
   if (cache.variants) return cache.variants
   const base = await getBaseSpecies()
   const byName = new Map(base.map((p) => [p.name, p]))
-  const res = await fetch(`${API}/pokemon?limit=2000&offset=10000`).then((r) => r.json())
+  // Variant forms have ids >= 10000; the API paginates by row, so fetch all
+  // pokemon rows and filter by id.
+  const res = await fetch(`${API}/pokemon?limit=3000`).then((r) => r.json())
   const variants = []
   for (const entry of res.results) {
+    const entryId = idFromUrl(entry.url)
+    if (!entryId || entryId < 10000) continue
     const tokens = entry.name.split('-')
     if (tokens.some((t) => VARIANT_EXCLUDE.includes(t))) continue
     const idx = tokens.findIndex((t) => SUFFIX_LABELS[t])
