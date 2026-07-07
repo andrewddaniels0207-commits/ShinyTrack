@@ -71,13 +71,13 @@ function AvailabilitySidebar({ pokemon, caught, onClose }) {
         {games?.map((g) => (
           <div key={g.id} className="sidebar-game">
             <span>{g.name}</span>
-            {isShinyLocked(g.id, pokemon.id) && (
+            {isShinyLocked(g.id, pokemon) && (
               <span className="lock-tag" title="Shiny-locked in this game">🔒 locked</span>
             )}
           </div>
         ))}
       </div>
-      {games?.some((g) => isShinyLocked(g.id, pokemon.id)) && (
+      {games?.some((g) => isShinyLocked(g.id, pokemon)) && (
         <p className="muted small">🔒 = shiny-locked in that game</p>
       )}
     </aside>

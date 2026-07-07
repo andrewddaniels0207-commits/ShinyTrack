@@ -13,7 +13,7 @@ export default function HuntsMenu({ hunts, onOpen, onNew }) {
       {active.length === 0 && (
         <div className="empty">
           <p>No active hunts.</p>
-          <p className="muted">Start one and good luck — may the odds be 1/1!</p>
+          <p className="muted">All of your active hunts will be stored here — Good Luck!</p>
         </div>
       )}
 

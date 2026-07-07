@@ -185,7 +185,7 @@ export default function NewHunt({ onStart, onCancel, dexes = [], profile, hunts 
               )}
               <div className="pokemon-grid">
                 {filtered.slice(0, 60).map((p) => {
-                  const locked = isShinyLocked(game.id, p.id)
+                  const locked = isShinyLocked(game.id, p)
                   return (
                     <button
                       key={p.id}

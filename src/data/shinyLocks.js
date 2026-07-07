@@ -51,8 +51,19 @@ const LOCKS = {
   // 'legends-za': locks not yet curated — add IDs here once documented.
 }
 
-const SETS = Object.fromEntries(Object.entries(LOCKS).map(([k, v]) => [k, new Set(v)]))
+// Locks for regional variant forms, by PokeAPI pokemon name (variant forms
+// have separate ids, so they're matched by name instead).
+const NAME_LOCKS = {
+  'sword-shield': ['articuno-galar', 'zapdos-galar', 'moltres-galar'],
+}
 
-export function isShinyLocked(gameId, pokemonId) {
-  return SETS[gameId]?.has(pokemonId) || false
+const SETS = Object.fromEntries(Object.entries(LOCKS).map(([k, v]) => [k, new Set(v)]))
+const NAME_SETS = Object.fromEntries(Object.entries(NAME_LOCKS).map(([k, v]) => [k, new Set(v)]))
+
+// Accepts a Pokemon entry ({ id, name, speciesId? }) or a plain species id.
+export function isShinyLocked(gameId, pokemon) {
+  if (typeof pokemon === 'number') return SETS[gameId]?.has(pokemon) || false
+  if (pokemon.name && NAME_SETS[gameId]?.has(pokemon.name)) return true
+  // Variants fall back to their base species' lock status.
+  return SETS[gameId]?.has(pokemon.speciesId ?? pokemon.id) || false
 }

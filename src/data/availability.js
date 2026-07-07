@@ -3,6 +3,17 @@
 // DLC legendary gifts. These are merged into the per-game Pokemon lists.
 // IDs are national dex numbers. Edit freely to refine availability.
 
+// Which regional variant families are native to each game. Variants are only
+// added when the base species is already in that game's list.
+export const VARIANT_SUFFIXES = {
+  'sun-moon': ['alola'],
+  'ultra-sun-ultra-moon': ['alola'],
+  'lets-go': ['alola'],
+  'sword-shield': ['galar'],
+  'legends-arceus': ['hisui'],
+  'scarlet-violet': ['paldea'],
+}
+
 // Box/roaming legendaries Gen 1-6 (shared by several post-game rosters)
 const LEGENDS_1_TO_6 = [
   144, 145, 146, 150, // birds, Mewtwo

@@ -1,9 +1,11 @@
 // Fetches the Pokemon obtainable in a given game by merging the pokedexes
-// of its PokeAPI version group(s). Results are cached in localStorage.
-import { GAME_EXTRAS } from '../data/availability'
+// of its PokeAPI version group(s). Regional variants (Alolan, Galarian,
+// Hisuian, Paldean) are treated as separate Pokemon with their own entries.
+// Results are cached in localStorage.
+import { GAME_EXTRAS, VARIANT_SUFFIXES } from '../data/availability'
 
 const API = 'https://pokeapi.co/api/v2'
-const CACHE_KEY = 'sht-dex-cache-v2'
+const CACHE_KEY = 'sht-dex-cache-v3'
 
 function readCache() {
   try {
@@ -37,10 +39,15 @@ export function titleCase(name) {
     .join(' ')
 }
 
-// Full national dex: [{ id, name, displayName }] sorted by id. Cached.
-export async function getNationalDex() {
+// Sort helper: variants sit right after their base species.
+function bySpecies(a, b) {
+  return (a.speciesId ?? a.id) - (b.speciesId ?? b.id) || a.id - b.id
+}
+
+// Base species list (no variants): [{ id, name, displayName }].
+async function getBaseSpecies() {
   const cache = readCache()
-  if (cache.national) return cache.national
+  if (cache.species) return cache.species
   const res = await fetch(`${API}/pokemon-species?limit=2000`).then((r) => r.json())
   const list = res.results
     .map((s) => {
@@ -49,13 +56,67 @@ export async function getNationalDex() {
     })
     .filter((p) => p.id)
     .sort((a, b) => a.id - b.id)
+  cache.species = list
+  writeCache(cache)
+  return list
+}
+
+const SUFFIX_LABELS = { alola: 'Alolan', galar: 'Galarian', hisui: 'Hisuian', paldea: 'Paldean' }
+const VARIANT_EXCLUDE = ['totem', 'cap', 'zen', 'gmax', 'mega']
+
+// Regional variant forms as separate Pokemon:
+// [{ id, name, displayName, speciesId, suffix }]. Cached.
+export async function getVariantList() {
+  const cache = readCache()
+  if (cache.variants) return cache.variants
+  const base = await getBaseSpecies()
+  const byName = new Map(base.map((p) => [p.name, p]))
+  const res = await fetch(`${API}/pokemon?limit=2000&offset=10000`).then((r) => r.json())
+  const variants = []
+  for (const entry of res.results) {
+    const tokens = entry.name.split('-')
+    if (tokens.some((t) => VARIANT_EXCLUDE.includes(t))) continue
+    const idx = tokens.findIndex((t) => SUFFIX_LABELS[t])
+    if (idx < 1) continue
+    const baseName = tokens.slice(0, idx).join('-')
+    const species = byName.get(baseName)
+    if (!species) continue
+    const suffix = tokens[idx]
+    const extra = tokens.slice(idx + 1).filter((t) => t !== 'standard' && t !== 'breed')
+    const extraLabel = extra.length ? ' ' + extra.map((t) => t[0].toUpperCase() + t.slice(1)).join(' ') : ''
+    variants.push({
+      id: idFromUrl(entry.url),
+      name: entry.name,
+      displayName: `${species.displayName} (${SUFFIX_LABELS[suffix]}${extraLabel})`,
+      speciesId: species.id,
+      suffix,
+    })
+  }
+  cache.variants = variants
+  writeCache(cache)
+  return variants
+}
+
+// Full national dex including regional variants, sorted by dex number.
+export async function getNationalDex() {
+  const cache = readCache()
+  if (cache.national) return cache.national
+  const [base, variants] = await Promise.all([getBaseSpecies(), getVariantList()])
+  const list = [...base, ...variants].sort(bySpecies)
   cache.national = list
   writeCache(cache)
   return list
 }
 
-// Direct next evolutions of a species: [{ id, name, displayName }].
-export async function getNextEvolutions(speciesId) {
+// Direct next evolutions of a Pokemon (variant-aware): evolving a regional
+// variant returns the matching variant evolution when one exists.
+// Accepts a species id or a variant pokemon id.
+export async function getNextEvolutions(pokemonId) {
+  const variants = await getVariantList()
+  const variant = variants.find((v) => v.id === pokemonId)
+  const speciesId = variant ? variant.speciesId : pokemonId
+  const suffix = variant ? variant.suffix : null
+
   const sp = await fetch(`${API}/pokemon-species/${speciesId}`).then((r) => r.json())
   if (!sp.evolution_chain) return []
   const chain = await fetch(sp.evolution_chain.url).then((r) => r.json())
@@ -71,11 +132,16 @@ export async function getNextEvolutions(speciesId) {
   if (!node) return []
   return node.evolves_to.map((e) => {
     const id = idFromUrl(e.species.url)
+    if (suffix) {
+      const ev = variants.find((v) => v.speciesId === id && v.suffix === suffix)
+      if (ev) return { id: ev.id, name: ev.name, displayName: ev.displayName }
+    }
     return { id, name: e.species.name, displayName: titleCase(e.species.name) }
   })
 }
 
-// Returns [{ id, name, displayName }] sorted by national dex number.
+// Returns the Pokemon obtainable in a game (regional dex + post-game extras
+// + that game's native regional variants), sorted by national dex number.
 export async function getPokemonForGame(game) {
   const cache = readCache()
   if (cache[game.id]) return cache[game.id]
@@ -101,14 +167,25 @@ export async function getPokemonForGame(game) {
   // Merge post-game extras (Ultra Wormholes, Dynamax Adventures, Mirage Spots...)
   const extras = GAME_EXTRAS[game.id] || []
   if (extras.length) {
-    const national = await getNationalDex()
-    const byId = new Map(national.map((p) => [p.id, p]))
+    const base = await getBaseSpecies()
+    const byId = new Map(base.map((p) => [p.id, p]))
     for (const id of extras) {
       if (!seen.has(id) && byId.has(id)) seen.set(id, byId.get(id))
     }
   }
 
-  const list = [...seen.values()].sort((a, b) => a.id - b.id)
+  // Add this game's native regional variants (when the base species is present)
+  const suffixes = VARIANT_SUFFIXES[game.id] || []
+  if (suffixes.length) {
+    const variants = await getVariantList()
+    for (const v of variants) {
+      if (suffixes.includes(v.suffix) && seen.has(v.speciesId) && !seen.has(v.id)) {
+        seen.set(v.id, v)
+      }
+    }
+  }
+
+  const list = [...seen.values()].sort(bySpecies)
   if (list.length > 0) {
     cache[game.id] = list
     writeCache(cache)
