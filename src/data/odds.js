@@ -93,6 +93,14 @@ export function getModifierDefs(gameId, method) {
     addCharm()
     return defs
   }
+  if (gameId === 'legends-za') {
+    defs.push(sel('sparkling', 'Sparkling Power (donuts)', [
+      { value: 0, label: 'None' }, { value: 1, label: 'Level 1' },
+      { value: 2, label: 'Level 2' }, { value: 3, label: 'Level 3' },
+    ]))
+    addCharm()
+    return defs
+  }
 
   addCharm()
   return defs
@@ -124,8 +132,6 @@ export function getOdds(gameId, method, modifiers = {}, combo = 0) {
       return { varies: 'up to ~1/3 for legendaries at max wormhole distance' }
     case 'DexNav Chaining':
       return { varies: 'improves with search level (roughly 1/512 or better at high levels)' }
-    case 'Wild Encounter Chaining':
-      return { varies: 'depends on chain length' }
     default:
       break
   }
@@ -140,6 +146,7 @@ export function getOdds(gameId, method, modifiers = {}, combo = 0) {
   rolls += modifiers.kos || 0
   rolls += modifiers.research || 0
   rolls += modifiers.sandwich || 0
+  rolls += modifiers.sparkling || 0
   rolls += modifiers.outbreakKos || 0
   if (modifiers.lure) rolls += 1
   if (gameId === 'lets-go') {

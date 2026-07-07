@@ -137,7 +137,7 @@ export default function DexTracker({ hunts, dexes, onCreateDex, onDeleteDex }) {
                   className={`pokemon-cell ${isCaught ? 'dex-caught' : isActive ? 'dex-progressing' : 'dex-missing'}`}
                   title={`${p.displayName}${isCaught ? ' — caught!' : isActive ? ' — hunt in progress' : ''}`}
                 >
-                  <img src={spriteUrl(p.id, isCaught)} alt={p.displayName} loading="lazy" width="56" height="56" />
+                  <img src={spriteUrl(p.id, isCaught)} alt={p.displayName} loading="lazy" width="80" height="80" />
                   <span>{isCaught ? '✨ ' : isActive ? '⏳ ' : ''}{p.displayName}</span>
                 </div>
               )

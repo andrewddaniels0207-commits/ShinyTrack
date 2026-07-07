@@ -10,12 +10,11 @@ import ActiveHunt from './components/ActiveHunt'
 import Collection from './components/Collection'
 import DexTracker from './components/DexTracker'
 import History from './components/History'
-import Resources from './components/Resources'
 import Tutorials from './components/Tutorials'
 import ProfileSettings from './components/ProfileSettings'
 import PublicProfile from './components/PublicProfile'
 
-const PUBLIC_VIEWS = new Set(['home', 'history', 'resources', 'tutorials'])
+const PUBLIC_VIEWS = new Set(['home', 'history', 'tutorials'])
 
 function parseRoute() {
   const hash = window.location.hash
@@ -238,12 +237,11 @@ export default function App() {
     ['hunts', 'Hunts'],
     ['collection', 'Collection'],
     ['dex', 'Dexes'],
-    ['resources', 'Resources'],
     ['tutorials', 'Guides'],
   ]
 
   return (
-    <div className="app">
+    <div className={`app ${view === 'dex' ? 'wide' : ''}`}>
       <nav className="nav">
         <a className="logo" href="#/">✨ {SITE.name}</a>
         <div className="row">
@@ -285,7 +283,6 @@ export default function App() {
 
       {view === 'home' && <Home loggedIn={loggedIn} onNavigate={navigate} />}
       {view === 'history' && <History />}
-      {view === 'resources' && <Resources />}
       {view === 'tutorials' && <Tutorials />}
 
       {view === 'hunts' && !openHunt && (

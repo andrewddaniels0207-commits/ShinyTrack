@@ -2,7 +2,7 @@
 export const SITE = {
   name: 'ShinyTrack',
   // Fill these in with your real links:
-  discordUrl: 'https://discord.gg/YOUR_INVITE', // TODO: paste your Discord invite link
+  discordUrl: 'https://discord.gg/w8pkbYRJff',
   twitchUrl: 'https://www.twitch.tv/adan0207',
   youtubeUrl: 'https://www.youtube.com/@ADaniels2705',
 }

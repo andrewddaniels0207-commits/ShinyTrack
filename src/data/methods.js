@@ -22,7 +22,7 @@ const METHODS_BY_GAME = {
   bdsp: [...UNIVERSAL, MASUDA, 'PokeRadar Chaining', 'Grand Underground'],
   'legends-arceus': [...UNIVERSAL, 'Mass Outbreak', 'Massive Mass Outbreak', 'Space-Time Distortion'],
   'scarlet-violet': [...UNIVERSAL, MASUDA, 'Mass Outbreak', 'Sandwich (Sparkling Power)', 'Tera Raid Battles'],
-  'legends-za': [...UNIVERSAL, 'Wild Encounter Chaining'],
+  'legends-za': [...UNIVERSAL, 'Hyperspace Encounters'],
 }
 
 export function getMethods(gameId) {
