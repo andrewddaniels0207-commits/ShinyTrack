@@ -3,6 +3,7 @@ import { GAMES, getGame } from '../data/games'
 import { getMethods } from '../data/methods'
 import { getPokemonForGame, spriteUrl } from '../api/pokeapi'
 import { getOdds } from '../data/odds'
+import { isShinyLocked } from '../data/shinyLocks'
 import ModifierControls from './ModifierControls'
 import { dexStatus } from './DexTracker'
 
@@ -183,19 +184,24 @@ export default function NewHunt({ onStart, onCancel, dexes = [], profile, hunts 
                 </div>
               )}
               <div className="pokemon-grid">
-                {filtered.slice(0, 60).map((p) => (
-                  <button
-                    key={p.id}
-                    className={`pokemon-cell ${pokemon?.id === p.id ? 'selected' : ''}`}
-                    onClick={() => setPokemon(p)}
-                    title={p.displayName}
-                  >
-                    <img src={spriteUrl(p.id)} alt={p.displayName} loading="lazy" width="56" height="56" />
-                    <span>{p.displayName}</span>
-                  </button>
-                ))}
+                {filtered.slice(0, 60).map((p) => {
+                  const locked = isShinyLocked(game.id, p.id)
+                  return (
+                    <button
+                      key={p.id}
+                      className={`pokemon-cell ${pokemon?.id === p.id ? 'selected' : ''} ${locked ? 'locked' : ''}`}
+                      onClick={() => !locked && setPokemon(p)}
+                      disabled={locked}
+                      title={locked ? `${p.displayName} is shiny-locked in ${game.name}` : p.displayName}
+                    >
+                      <img src={spriteUrl(p.id)} alt={p.displayName} loading="lazy" width="56" height="56" />
+                      <span>{locked ? '🔒 ' : ''}{p.displayName}</span>
+                    </button>
+                  )
+                })}
                 {filtered.length === 0 && <p className="muted">No matches.</p>}
               </div>
+              <p className="muted small">🔒 = shiny-locked in this game (no way to hunt it shiny there)</p>
               {filtered.length > 60 && (
                 <p className="muted">Showing first 60 — keep typing to narrow down.</p>
               )}

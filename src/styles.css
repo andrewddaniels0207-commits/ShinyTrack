@@ -285,6 +285,30 @@ body {
 .tutorial-chip { cursor: default; opacity: 0.75; }
 .favorite-panel { border-color: var(--gold); }
 
+.pokemon-cell.locked { opacity: 0.45; cursor: not-allowed; }
+
+.dex-layout { display: flex; gap: 14px; align-items: flex-start; }
+.dex-layout .dex-grid { flex: 1; }
+.dex-sidebar {
+  width: 240px; flex-shrink: 0; position: sticky; top: 12px;
+  background: var(--panel); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 14px; text-align: center;
+  box-shadow: 0 2px 10px rgba(0,0,0,.1);
+}
+.dex-sidebar img { image-rendering: pixelated; }
+.dex-sidebar h3 { margin: 4px 0 0; }
+.sidebar-games { display: flex; flex-direction: column; gap: 6px; text-align: left; }
+.sidebar-game {
+  display: flex; justify-content: space-between; align-items: center; gap: 8px;
+  padding: 7px 10px; background: var(--panel-2); border-radius: 8px; font-size: 0.88rem;
+}
+.lock-tag { font-size: 0.75rem; color: var(--danger); white-space: nowrap; }
+
+@media (max-width: 900px) {
+  .dex-layout { flex-direction: column-reverse; }
+  .dex-sidebar { width: 100%; position: static; }
+}
+
 /* ---- Mobile ---- */
 @media (max-width: 640px) {
   .app { padding: 10px; }

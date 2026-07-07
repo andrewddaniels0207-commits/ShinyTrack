@@ -1,9 +1,12 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { GAMES, getGame } from '../data/games'
 import { getNationalDex, getPokemonForGame, spriteUrl } from '../api/pokeapi'
+import { isShinyLocked } from '../data/shinyLocks'
 import { newHuntId } from '../lib/storage'
 
-// Caught = any completed hunt (including manual entries and evolutions).
+// Caught = completed hunts (including manual entries). A living dex requires
+// owning each stage, so an evolved shiny only credits its CURRENT form —
+// the pre-evolution slot opens back up when you evolve.
 // In progress = any active hunt.
 export function dexStatus(hunts, dexId = null) {
   const caught = new Set()
@@ -12,13 +15,73 @@ export function dexStatus(hunts, dexId = null) {
     // Custom dexes only count hunts assigned to them; national counts everything.
     if (dexId && !(h.dexIds || []).includes(dexId)) continue
     if (h.status === 'completed') {
-      caught.add(h.pokemonId)
-      for (const id of h.evolvedIds || []) caught.add(id)
+      const evolved = h.evolvedIds || []
+      caught.add(evolved.length ? evolved[evolved.length - 1] : h.pokemonId)
     } else if (h.status === 'active') {
       inProgress.add(h.pokemonId)
     }
   }
   return { caught, inProgress }
+}
+
+// Sidebar: every game a species can be obtained in.
+function AvailabilitySidebar({ pokemon, caught, onClose }) {
+  const [games, setGames] = useState(null)
+  const requestId = useRef(0)
+
+  useEffect(() => {
+    if (!pokemon) return
+    const id = ++requestId.current
+    setGames(null)
+    async function load() {
+      const found = []
+      for (const g of GAMES) {
+        try {
+          const list = await getPokemonForGame(g)
+          if (list.some((p) => p.id === pokemon.id)) found.push(g)
+        } catch { /* skip games that fail to load */ }
+        if (requestId.current !== id) return
+      }
+      if (requestId.current === id) setGames(found)
+    }
+    load()
+  }, [pokemon])
+
+  if (!pokemon) return null
+  return (
+    <aside className="dex-sidebar">
+      <div className="panel-header">
+        <strong>#{pokemon.id}</strong>
+        <button className="btn ghost small" onClick={onClose}>✕</button>
+      </div>
+      <img
+        src={spriteUrl(pokemon.id, caught)}
+        alt={pokemon.displayName}
+        width="96"
+        height="96"
+        onError={(e) => { e.currentTarget.src = spriteUrl(pokemon.id) }}
+      />
+      <h3>{caught ? '✨ ' : ''}{pokemon.displayName}</h3>
+      <label className="field-label">Available in</label>
+      {!games && <p className="muted small">Checking every game…</p>}
+      {games && games.length === 0 && (
+        <p className="muted small">Not obtainable in any supported game (event/transfer only).</p>
+      )}
+      <div className="sidebar-games">
+        {games?.map((g) => (
+          <div key={g.id} className="sidebar-game">
+            <span>{g.name}</span>
+            {isShinyLocked(g.id, pokemon.id) && (
+              <span className="lock-tag" title="Shiny-locked in this game">🔒 locked</span>
+            )}
+          </div>
+        ))}
+      </div>
+      {games?.some((g) => isShinyLocked(g.id, pokemon.id)) && (
+        <p className="muted small">🔒 = shiny-locked in that game</p>
+      )}
+    </aside>
+  )
 }
 
 export default function DexTracker({ hunts, dexes, onCreateDex, onDeleteDex }) {
@@ -29,6 +92,7 @@ export default function DexTracker({ hunts, dexes, onCreateDex, onDeleteDex }) {
   const [newName, setNewName] = useState('')
   const [newGame, setNewGame] = useState('')
   const [hideCaught, setHideCaught] = useState(false)
+  const [sidebarPokemon, setSidebarPokemon] = useState(null)
 
   const currentDex = dexes.find((d) => d.id === selected)
 
@@ -126,22 +190,31 @@ export default function DexTracker({ hunts, dexes, onCreateDex, onDeleteDex }) {
               Hide caught
             </label>
           </div>
+          <p className="muted small">Click a Pokemon to see every game it's available in.</p>
 
-          <div className="pokemon-grid dex-grid">
-            {shown.map((p) => {
-              const isCaught = caught.has(p.id)
-              const isActive = inProgress.has(p.id)
-              return (
-                <div
-                  key={p.id}
-                  className={`pokemon-cell ${isCaught ? 'dex-caught' : isActive ? 'dex-progressing' : 'dex-missing'}`}
-                  title={`${p.displayName}${isCaught ? ' — caught!' : isActive ? ' — hunt in progress' : ''}`}
-                >
-                  <img src={spriteUrl(p.id, isCaught)} alt={p.displayName} loading="lazy" width="80" height="80" />
-                  <span>{isCaught ? '✨ ' : isActive ? '⏳ ' : ''}{p.displayName}</span>
-                </div>
-              )
-            })}
+          <div className="dex-layout">
+            <div className="pokemon-grid dex-grid">
+              {shown.map((p) => {
+                const isCaught = caught.has(p.id)
+                const isActive = inProgress.has(p.id)
+                return (
+                  <button
+                    key={p.id}
+                    className={`pokemon-cell ${isCaught ? 'dex-caught' : isActive ? 'dex-progressing' : 'dex-missing'} ${sidebarPokemon?.id === p.id ? 'selected' : ''}`}
+                    onClick={() => setSidebarPokemon(p)}
+                    title={`${p.displayName}${isCaught ? ' — caught!' : isActive ? ' — hunt in progress' : ''}`}
+                  >
+                    <img src={spriteUrl(p.id, isCaught)} alt={p.displayName} loading="lazy" width="80" height="80" />
+                    <span>{isCaught ? '✨ ' : isActive ? '⏳ ' : ''}{p.displayName}</span>
+                  </button>
+                )
+              })}
+            </div>
+            <AvailabilitySidebar
+              pokemon={sidebarPokemon}
+              caught={sidebarPokemon ? caught.has(sidebarPokemon.id) : false}
+              onClose={() => setSidebarPokemon(null)}
+            />
           </div>
         </>
       )}

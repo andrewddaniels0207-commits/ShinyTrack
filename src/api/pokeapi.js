@@ -1,7 +1,9 @@
 // Fetches the Pokemon obtainable in a given game by merging the pokedexes
 // of its PokeAPI version group(s). Results are cached in localStorage.
+import { GAME_EXTRAS } from '../data/availability'
+
 const API = 'https://pokeapi.co/api/v2'
-const CACHE_KEY = 'sht-dex-cache-v1'
+const CACHE_KEY = 'sht-dex-cache-v2'
 
 function readCache() {
   try {
@@ -93,6 +95,16 @@ export async function getPokemonForGame(game) {
           })
         }
       }
+    }
+  }
+
+  // Merge post-game extras (Ultra Wormholes, Dynamax Adventures, Mirage Spots...)
+  const extras = GAME_EXTRAS[game.id] || []
+  if (extras.length) {
+    const national = await getNationalDex()
+    const byId = new Map(national.map((p) => [p.id, p]))
+    for (const id of extras) {
+      if (!seen.has(id) && byId.has(id)) seen.set(id, byId.get(id))
     }
   }
 
