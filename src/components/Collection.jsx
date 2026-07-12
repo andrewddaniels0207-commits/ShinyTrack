@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { spriteUrl, getNextEvolutions } from '../api/pokeapi'
+import ShinyModal from './ShinyModal'
 
 const SORTS = {
   date: { label: 'Date', fn: (a, b) => new Date(b.endDate) - new Date(a.endDate) },
@@ -28,6 +29,7 @@ export default function Collection({
 }) {
   const [sortBy, setSortBy] = useState('date')
   const [asc, setAsc] = useState(false)
+  const [modalHunt, setModalHunt] = useState(null)
 
   const completed = useMemo(() => {
     const list = hunts.filter((h) => h.status === 'completed').sort(SORTS[sortBy].fn)
@@ -105,7 +107,16 @@ export default function Collection({
           const cur = currentSpecies(h)
           const isFav = favoriteHuntId === h.id
           return (
-            <div key={h.id} className={`shiny-card ${isFav ? 'favorite' : ''}`}>
+            <div
+              key={h.id}
+              className={`shiny-card clickable ${isFav ? 'favorite' : ''}`}
+              role="button"
+              tabIndex={0}
+              onClick={(e) => {
+                if (e.target.closest('button, a')) return
+                setModalHunt(h)
+              }}
+            >
               {!readOnly && onSetFavorite && (
                 <button
                   className={`fav-star ${isFav ? 'active' : ''}`}
@@ -156,6 +167,14 @@ export default function Collection({
           )
         })}
       </div>
+
+      {modalHunt && (
+        <ShinyModal
+          title={`✨ ${currentSpecies(modalHunt).name}`}
+          hunts={[modalHunt]}
+          onClose={() => setModalHunt(null)}
+        />
+      )}
     </div>
   )
 }

@@ -109,6 +109,8 @@ export function getModifierDefs(gameId, method) {
 // combo: live catch combo count (Let's Go games).
 // Returns { denominator, note } | { varies } | null (unknown/custom method).
 export function getOdds(gameId, method, modifiers = {}, combo = 0) {
+  // Legacy name for hunts saved before the rename.
+  if (method === 'Full Odds (Random Encounter)') method = 'Random Encounter'
   const game = getGame(gameId)
   if (!game) return null
   const known = getMethods(gameId).includes(method) && method !== 'Other'

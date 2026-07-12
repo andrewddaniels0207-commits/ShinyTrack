@@ -3,6 +3,27 @@ import { supabase } from '../lib/supabase'
 import { spriteUrl } from '../api/pokeapi'
 import { SITE } from '../data/site'
 import { NEWS } from '../data/news'
+import ShinyModal from './ShinyModal'
+
+// Convert a raw hunts row to the camelCase shape ShinyModal expects.
+export function rowToHunt(r) {
+  return {
+    id: r.id,
+    userId: r.user_id,
+    pokemonId: r.pokemon_id,
+    pokemonName: r.pokemon_name,
+    gameName: r.game_name,
+    method: r.method,
+    count: r.count,
+    endDate: r.end_date,
+    manual: r.manual,
+    evolvedIds: r.evolved_ids || [],
+    evolvedName: r.evolved_name,
+    proofUrl: r.proof_url,
+    timeSeconds: r.time_seconds,
+    phases: r.phases || [],
+  }
+}
 
 // Fetches recent completed hunts visible to everyone (public profiles only),
 // with usernames attached. Shared with the History page.
@@ -10,7 +31,7 @@ export async function fetchGlobalShinies(limit = 300) {
   if (!supabase) return { hunts: [], users: {} }
   const { data: rows, error } = await supabase
     .from('hunts')
-    .select('id, user_id, pokemon_id, pokemon_name, game_id, game_name, method, count, end_date, manual, evolved_name, evolved_ids')
+    .select('id, user_id, pokemon_id, pokemon_name, game_id, game_name, method, count, end_date, manual, evolved_name, evolved_ids, proof_url, time_seconds, phases')
     .eq('status', 'completed')
     .order('end_date', { ascending: false })
     .limit(limit)
@@ -30,6 +51,7 @@ export async function fetchGlobalShinies(limit = 300) {
 
 export default function Home({ loggedIn, onNavigate }) {
   const [data, setData] = useState(null)
+  const [modal, setModal] = useState(null) // { title, hunts }
 
   useEffect(() => {
     fetchGlobalShinies().then(setData)
@@ -89,7 +111,16 @@ export default function Home({ loggedIn, onNavigate }) {
             const name = h.evolved_name || h.pokemon_name
             const spriteId = h.evolved_ids?.length ? h.evolved_ids[h.evolved_ids.length - 1] : h.pokemon_id
             return (
-              <div key={h.id} className="hunt-row static">
+              <div
+                key={h.id}
+                className="hunt-row"
+                role="button"
+                tabIndex={0}
+                onClick={(e) => {
+                  if (e.target.closest('a')) return
+                  setModal({ title: `✨ ${name}`, hunts: [rowToHunt(h)] })
+                }}
+              >
                 <img src={spriteUrl(spriteId, true)} alt="" width="48" height="48"
                   onError={(e) => { e.currentTarget.src = spriteUrl(spriteId) }} />
                 <div className="hunt-row-info">
@@ -115,13 +146,22 @@ export default function Home({ loggedIn, onNavigate }) {
         {data && leaderboard.length === 0 && <p className="muted">Leaderboard appears once shinies are registered.</p>}
         <div className="leaderboard">
           {leaderboard.map((e, i) => (
-            <div key={e.name} className="leader-row">
+            <button
+              key={e.name}
+              className="leader-row clickable"
+              onClick={() =>
+                setModal({
+                  title: `${e.name} — found ${e.count}× on ShinyTrack`,
+                  hunts: nonManual.filter((h) => h.pokemon_name === e.name).slice(0, 10).map(rowToHunt),
+                })
+              }
+            >
               <span className="leader-rank">#{i + 1}</span>
               <img src={spriteUrl(e.id, true)} alt="" width="40" height="40"
                 onError={(ev) => { ev.currentTarget.src = spriteUrl(e.id) }} />
               <strong>{e.name}</strong>
               <span className="leader-count">{e.count}×</span>
-            </div>
+            </button>
           ))}
         </div>
       </div>
@@ -151,6 +191,10 @@ export default function Home({ loggedIn, onNavigate }) {
         </div>
         <p className="muted small">Enjoying {SITE.name}? Following the channels above is the best way to support the site.</p>
       </div>
+
+      {modal && (
+        <ShinyModal title={modal.title} hunts={modal.hunts} users={data?.users || {}} onClose={() => setModal(null)} />
+      )}
     </>
   )
 }

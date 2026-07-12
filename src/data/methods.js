@@ -1,5 +1,5 @@
 // Shiny hunting methods available per game.
-const UNIVERSAL = ['Full Odds (Random Encounter)', 'Soft Reset']
+const UNIVERSAL = ['Random Encounter', 'Soft Reset']
 const MASUDA = 'Masuda Method (Breeding)'
 
 const METHODS_BY_GAME = {

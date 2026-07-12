@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from 'react'
-import { spriteUrl } from '../api/pokeapi'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { spriteUrl, getPokemonForGame } from '../api/pokeapi'
+import { getGame } from '../data/games'
 import { getOdds, cumulativeChance } from '../data/odds'
 import ModifierControls from './ModifierControls'
 
@@ -82,11 +83,31 @@ export default function ActiveHunt({ hunt, onUpdate, onComplete, onDelete, onBac
   })
 
   // ---- Phases (off-target shinies) ----
-  function addPhase() {
-    const name = window.prompt('A different shiny appeared! Which Pokemon was it?')
-    if (!name) return
+  const [phasePicking, setPhasePicking] = useState(false)
+  const [phaseList, setPhaseList] = useState(null)
+  const [phaseSearch, setPhaseSearch] = useState('')
+
+  function openPhasePicker() {
+    setPhasePicking(true)
+    setPhaseSearch('')
+    if (!phaseList) {
+      getPokemonForGame(getGame(hunt.gameId))
+        .then(setPhaseList)
+        .catch(() => setPhaseList([]))
+    }
+  }
+
+  const phaseFiltered = useMemo(() => {
+    if (!phaseList) return []
+    const q = phaseSearch.trim().toLowerCase()
+    if (!q) return phaseList
+    return phaseList.filter((p) => p.name.includes(q) || String(p.id) === q)
+  }, [phaseList, phaseSearch])
+
+  function selectPhase(p) {
     const phase = {
-      name: name.trim(),
+      name: p.displayName,
+      id: p.id,
       count: hunt.count,
       date: new Date().toISOString(),
     }
@@ -95,6 +116,7 @@ export default function ActiveHunt({ hunt, onUpdate, onComplete, onDelete, onBac
       updated.count = 0
     }
     onUpdate(updated)
+    setPhasePicking(false)
   }
 
   // ---- Odds ----
@@ -183,8 +205,40 @@ export default function ActiveHunt({ hunt, onUpdate, onComplete, onDelete, onBac
       </div>
 
       <div className="row center-row">
-        <button className="btn" onClick={addPhase}>◆ Phase (off-target shiny)</button>
+        <button className="btn" onClick={() => (phasePicking ? setPhasePicking(false) : openPhasePicker())}>
+          ◆ Phase (off-target shiny)
+        </button>
       </div>
+
+      {phasePicking && (
+        <div className="settings phase-picker">
+          <label className="field-label">Which shiny appeared instead?</label>
+          {!phaseList && <p className="muted small">Loading Pokemon from {hunt.gameName}…</p>}
+          {phaseList && (
+            <>
+              <input
+                className="input"
+                type="text"
+                placeholder={`Search ${phaseList.length} Pokemon…`}
+                value={phaseSearch}
+                onChange={(e) => setPhaseSearch(e.target.value)}
+                autoFocus
+              />
+              <div className="pokemon-grid phase-grid">
+                {phaseFiltered.slice(0, 30).map((p) => (
+                  <button key={p.id} className="pokemon-cell" onClick={() => selectPhase(p)} title={p.displayName}>
+                    <img src={spriteUrl(p.id, true)} alt={p.displayName} loading="lazy" width="56" height="56"
+                      onError={(e) => { e.currentTarget.src = spriteUrl(p.id) }} />
+                    <span>{p.displayName}</span>
+                  </button>
+                ))}
+                {phaseFiltered.length === 0 && <p className="muted">No matches.</p>}
+              </div>
+            </>
+          )}
+          <button className="btn ghost small" onClick={() => setPhasePicking(false)}>Cancel</button>
+        </div>
+      )}
 
       {phases.length > 0 && (
         <div className="phases">
